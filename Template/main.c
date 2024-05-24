@@ -38,7 +38,7 @@ OF SUCH DAMAGE.
 #include <stdio.h>
 #include "main.h"
 #include "gd32e230c_eval.h"
-
+#include "pwm_control.h"
 
 
 

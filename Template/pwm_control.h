@@ -29,5 +29,6 @@ void run_cycle_1ms(void);
 void data_parse(void);
 void send_dshot600_ok(void);
 void receive_dshoot_data_dispose(uint8_t *channel, uint16_t *data);
+void test_dshot600_1ms(void);
 
 #endif

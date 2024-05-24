@@ -2,6 +2,8 @@
 #include "pwm_control.h"
 #include "gd32e23x.h"
 #include "systick.h"
+#include "main.h"
+#include <string.h>
 
 #define TIMEOUT_CONTROL_PWM_COUNT (8 - 4)
 #define ESC_CMD_BUFFER_LEN 18 
