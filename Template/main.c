@@ -104,6 +104,18 @@ void gpio_configuration_output(void)
     gpio_bit_set(GPIOB, GPIO_PIN_5);
 }
 
+void gpioInitTestPin(void)
+{
+    rcu_periph_clock_enable(RCU_GPIOA);
+
+    gpio_mode_set(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_5);
+    gpio_output_options_set(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_5);
+
+    gpio_bit_set(GPIOA, GPIO_PIN_0);
+    gpio_bit_set(GPIOA, GPIO_PIN_1);
+    gpio_bit_set(GPIOA, GPIO_PIN_5);
+}
+
 void gpio_configuration_input(void)
 {
     gpio_mode_set(GPIOB, GPIO_MODE_INPUT, GPIO_PUPD_NONE, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_5);
@@ -119,6 +131,7 @@ void gpio_configuration_input(void)
 void nvic_configuration(void)
 {
     nvic_irq_enable(DMA_Channel3_4_IRQn, 0);
+    // nvic_irq_enable(TIMER2_IRQn, 0);
 }
 
 /**
@@ -335,6 +348,7 @@ int main(void)
     systick_config();
     /* configure the GPIO ports */
     gpio_configuration_output();
+    gpioInitTestPin();
     /* configure COM port */
     gd_eval_com_init(EVAL_COM);
     /* configure the TIMER interrupt */

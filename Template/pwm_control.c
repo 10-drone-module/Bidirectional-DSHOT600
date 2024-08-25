@@ -729,6 +729,7 @@ void run_cycle_1ms(void)
 			dma_status = 0;
 			dma_configuration_send_shoot();
 			timer_configuration_send_dshoot();
+            gpio_bit_set(GPIOA, GPIO_PIN_0);
             //__set_PRIMASK(0);
 			//dshot_control_4_gpio(bit_dshoot_cmd_data);//直接使用io口模式发送
 
@@ -736,7 +737,12 @@ void run_cycle_1ms(void)
 		}
 }
 
+typedef struct {
+    uint16_t speed[4];
+} motor_speed_str;
 
+
+static motor_speed_str motor_speed;
 
 void receive_dshoot_data_dispose(uint8_t *channel, uint16_t *data)
 {
@@ -775,8 +781,19 @@ void receive_dshoot_data_dispose(uint8_t *channel, uint16_t *data)
 		}
 
 		if (start_value_flag)
-		decodeTelemetryPacket(&edge_data.edge[i][0],edge_data.edge_cnt[i]);
-	}
+            motor_speed.speed[i] = decodeTelemetryPacket(&edge_data.edge[i][0], edge_data.edge_cnt[i]);
+        // if (i >= 3)
+        // {
+        //     receive_sum++;
+
+            // Debug("%d %d %d %d %d %d %d %d\r\n", decode_cnt, success_cnt, fail_sum,
+                //   fail_cnt1, fail_cnt2, fail_cnt3, fail_cnt4, fail_cnt5);
+            // printf("%d %d %d %d %d %d %d %d\r\n", decode_cnt, success_cnt, fail_sum, fail_cnt1, fail_cnt2,
+            //        fail_cnt3, fail_cnt4, fail_cnt5);
+            // printf("Time_us %d RPM %d %d %d %d\r\n", GetSysTime_us(),
+            //        motor_speed.speed[0], motor_speed.speed[1], motor_speed.speed[2], motor_speed.speed[3]);
+        // }
+    }
 }
 
 
@@ -819,11 +836,16 @@ void DMA_Channel3_4_IRQHandler(void)
 			dma_configuration_receive_dshoot();
             timer_configuration_receive_dshoot();
             __set_PRIMASK(0);//开中断
+            gpio_bit_reset(GPIOA, GPIO_PIN_0);
+            gpio_bit_set(GPIOA, GPIO_PIN_1);                    
 			dma_status = 1;
         } else if (dma_status == 1) {
+            gpio_bit_reset(GPIOA, GPIO_PIN_1);
+            gpio_bit_set(GPIOA, GPIO_PIN_5);
             memcpy(data_handle, dshoot_dma_buffer, sizeof(dshoot_dma_buffer));
 			//handl_data_flag = 1;
             receive_dshoot_data_dispose(dshoot_pin,data_handle);
+            gpio_bit_reset(GPIOA, GPIO_PIN_5);
             //data_parse();
         }
     }
@@ -890,12 +912,43 @@ void pwm_control_protocol(uint8_t* datas)
 
 void test_dshot600_1ms(void)
 {
-
+    static uint16_t count= 0 ;
     delay_1ms(1);
     //if (handl_data_flag)
     //receive_dshoot_data_dispose(dshoot_pin,data_handle);
     //handl_data_flag = 0;
     run_cycle_1ms();
+
+    if(count > 2000)
+    {
+        count = 0 ;
+        // printf("Time_us %d RPM %d %d %d %d\r\n", GetSysTime_us(),motor_speed.speed[0], motor_speed.speed[1], motor_speed.speed[2], motor_speed.speed[3]);
+    }
+    else
+    {
+        count++;
+    }
+
+        
     
     //send_dshot600_ok();
+}
+
+void TIMER2_IRQHandler(void)
+{
+    static uint8_t timer_io_toggle = 0 ;
+    if(timer_flag_get(TIMER2,TIMER_FLAG_CH0))
+    {
+        timer_flag_clear(TIMER2,TIMER_FLAG_CH0);
+        if(timer_io_toggle)
+        {
+            gpio_bit_set(GPIOA, GPIO_PIN_1);
+            timer_io_toggle = 0;
+        }
+        else
+        {
+            gpio_bit_reset(GPIOA, GPIO_PIN_1);
+            timer_io_toggle = 1;
+        }
+    }
 }

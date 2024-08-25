@@ -5,3 +5,5 @@ Template/Keil_project/RTE/_GD32E23x/RTE_Components.h
 
 Template/Keil_project/list/Project.map
 .vscode/settings.json
+Template/Keil_project/Project.uvoptx
+Template/Keil_project/EventRecorderStub.scvd
