@@ -38,11 +38,12 @@ OF SUCH DAMAGE.
 
 /* led spark function */
 void led_spark(void);
+
 void gpio_configuration_output(void);
-void dma_configuration_send_shoot(void);
-void timer_configuration_send_dshoot(void);
-void dma_configuration_receive_dshoot(void);
-void timer_configuration_receive_dshoot(void);
 void gpio_configuration_input(void);
+void timer_configuration_send_dshoot(void);
+void timer_configuration_receive_dshoot(void);
+void dma_configuration_receive_dshoot(void);
+void dma_configuration_send_dshoot(void);
 
 #endif /* MAIN_H */

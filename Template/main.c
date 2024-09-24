@@ -55,6 +55,25 @@ OF SUCH DAMAGE.
 uint16_t dshoot_dma_buffer[140];//32
 uint32_t send_buffer_dshoot[54];
 
+typedef struct
+{
+    uint32_t ctl;
+    uint32_t cnt;
+    uint32_t p_addr;
+    uint32_t m_addr;
+} DmaCache_s;
+
+static DmaCache_s rec_dma_cache_;
+static DmaCache_s send_dma_cache_;
+
+typedef struct
+{
+    uint32_t ctl;
+    uint32_t pud;
+} InputRegGpio_s;
+
+static InputRegGpio_s motor_input_reg_;
+
 /*#define HIGHT_VALUE  0x01U<<(4+16),0x01U<<(4+16),0x01U<<(4)
 #define LOW_VALUE    0x01U<<(4+16),0x01U<<(4),0x01U<<(4)
 #define PULL_HIGH    0x01U<<(4),0x01U<<(4),0x01U<<(4)
@@ -117,11 +136,28 @@ void gpioInitTestPin(void)
     gpio_bit_set(GPIOA, GPIO_PIN_6);
 }
 
-void gpio_configuration_input(void)
+static void gpioRegLoad(InputRegGpio_s des, uint32_t gpio_periph)
 {
-    gpio_mode_set(GPIOB, GPIO_MODE_INPUT, GPIO_PUPD_NONE, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_5);
+    GPIO_CTL(gpio_periph) = des.ctl;
+    GPIO_PUD(gpio_periph) = des.pud;
 }
 
+static void gpioRegSave(InputRegGpio_s *des, uint32_t gpio_periph)
+{
+    des->ctl = GPIO_CTL(gpio_periph);
+    des->pud = GPIO_PUD(gpio_periph);
+}
+
+void gpio_configuration_input(void)
+{
+    gpioRegLoad(motor_input_reg_,GPIOB);
+}
+
+static void gpio_configuration_input_init(void)
+{
+    gpio_mode_set(GPIOB, GPIO_MODE_INPUT, GPIO_PUPD_NONE, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_4 | GPIO_PIN_5);
+    gpioRegSave(&motor_input_reg_,GPIOB);
+}
 
 /**
     \brief      configure the nested vectored interrupt controller
@@ -202,9 +238,35 @@ void timer_configuration_receive_dshoot(void)
     timer_enable(TIMER2);
 }
 
+void bbSaveDMARegs(DmaCache_s *des, dma_channel_enum dma_ch)
+{
+    des->ctl = DMA_CHCTL(dma_ch);
+    des->cnt = DMA_CHCNT(dma_ch);
+    des->p_addr = DMA_CHPADDR(dma_ch);
+    des->m_addr = DMA_CHMADDR(dma_ch);
+}
 
+void bbLoadDMARegs(DmaCache_s source, dma_channel_enum dma_ch)
+{
+    DMA_CHCTL(dma_ch) = source.ctl;
+    DMA_CHCNT(dma_ch) = source.cnt;
+    DMA_CHPADDR(dma_ch) = source.p_addr;
+    DMA_CHMADDR(dma_ch) = source.m_addr;
+    dma_channel_enable(dma_ch);
+}
 
 void dma_configuration_receive_dshoot(void)
+{
+    bbLoadDMARegs(rec_dma_cache_,DMA_CH3);
+}
+
+void dma_configuration_send_dshoot(void)
+{
+    bbLoadDMARegs(send_dma_cache_,DMA_CH3);
+}
+
+
+void dma_configuration_receive_dshoot_init(void)
 {
     dma_parameter_struct dma_init_struct;
 
@@ -224,13 +286,8 @@ void dma_configuration_receive_dshoot(void)
     dma_init_struct.number       = 140;
     dma_init_struct.priority     = DMA_PRIORITY_ULTRA_HIGH;
     dma_init( DMA_CH3, &dma_init_struct);
-    
-    /* enable DMA circulation mode */
-    dma_circulation_enable(DMA_CH3);
-    /* enable DMA channel4 */
-    dma_channel_enable(DMA_CH3);
-		
-	dma_interrupt_enable(DMA_CH3, DMA_INT_FTF);
+    dma_interrupt_enable(DMA_CH3, DMA_INT_FTF);
+    bbSaveDMARegs(&rec_dma_cache_, DMA_CH3);
 }
 
 /**
@@ -305,7 +362,7 @@ void timer_configuration_send_dshoot(void)
 
 
 
-void dma_configuration_send_shoot(void)
+void dma_configuration_send_dshoot_init(void)
 {
     dma_parameter_struct dma_init_struct;
 
@@ -322,16 +379,11 @@ void dma_configuration_send_shoot(void)
     dma_init_struct.periph_width = DMA_PERIPHERAL_WIDTH_32BIT;
     dma_init_struct.memory_width = DMA_MEMORY_WIDTH_32BIT;
     dma_init_struct.direction    = DMA_MEMORY_TO_PERIPHERAL;
-    dma_init_struct.number       = 16*3+3+3;
+    dma_init_struct.number       = 16*3+3;
     dma_init_struct.priority     = DMA_PRIORITY_ULTRA_HIGH;
     dma_init( DMA_CH3, &dma_init_struct);
-    
-    /* enable DMA circulation mode */
-    dma_circulation_disable(DMA_CH3);
-    /* enable DMA channel4 */
-    //dma_channel_enable(DMA_CH3);
-		
-	dma_interrupt_enable(DMA_CH3, DMA_INT_FTF);
+    dma_interrupt_enable(DMA_CH3, DMA_INT_FTF);
+    bbSaveDMARegs(&send_dma_cache_, DMA_CH3);
 }
 
 
@@ -369,6 +421,9 @@ int main(void)
     
     /*timer_configuration_send_dshoot();
     dma_configuration_send_shoot();*/
+    dma_configuration_receive_dshoot_init();
+    dma_configuration_send_dshoot_init();
+    gpio_configuration_input_init();
 
     while (1)
     {

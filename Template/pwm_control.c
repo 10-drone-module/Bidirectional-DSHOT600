@@ -15,6 +15,7 @@
 uint16_t dshot_cmd_ch[MOTOR_NUM][ESC_CMD_BUFFER_LEN]={0};
 uint8_t dshoot_pin[MOTOR_NUM] = {0,1,4,5};
 uint32_t bit_dshoot_cmd_data[MOTOR_NUM+1][ESC_CMD_BUFFER_LEN*3] = {0};
+uint16_t speed_rec_ = 1000;
 
 enum PWM_INDEX_NUMBER {
     PWM_1 = 0,
@@ -705,20 +706,18 @@ void run_cycle_1ms(void)
 			//__set_PRIMASK(1);
 			//dshot_control_4_gpio(bit_dshoot_cmd_data);//直接使用io口模式发送
 			dma_status = 0;
-			dma_configuration_send_shoot();
+			dma_configuration_send_dshoot();
 			timer_configuration_send_dshoot();
 			//__set_PRIMASK(0);
 		} else {
             //__set_PRIMASK(1);
 
-            raw_data[0] = 0X4c;
-            raw_data[1] = 0X04;
-            raw_data[2] = 0X4c;
-            raw_data[3] = 0X04;
-            raw_data[4] = 0X4c;
-            raw_data[5] = 0X04;
-            raw_data[6] = 0X4c;
-            raw_data[7] = 0X04;
+            for (uint8_t i = 0; i < 8; i++)
+            {
+                raw_data[i] = (uint8_t)speed_rec_;
+                raw_data[++i] = (uint8_t)(speed_rec_ >> 8);
+            }
+
             data = raw_data;
             start_value_flag = 1;
 
@@ -728,9 +727,9 @@ void run_cycle_1ms(void)
             gpio_configuration_output();
 			
 			dma_status = 0;
-			dma_configuration_send_shoot();
+			dma_configuration_send_dshoot();
 			timer_configuration_send_dshoot();
-            gpio_bit_set(GPIOA, GPIO_PIN_0);
+            gpio_bit_set(GPIOA, GPIO_PIN_6);
             //__set_PRIMASK(0);
 			//dshot_control_4_gpio(bit_dshoot_cmd_data);//直接使用io口模式发送
 
@@ -747,6 +746,7 @@ static motor_speed_str motor_speed;
 
 void receive_dshoot_data_dispose(uint8_t *channel, uint16_t *data)
 {
+    uint32_t speed_temp = 0;
 	edge_data_str edge_data = {0};
 	edge_dispose_str edge_dispose = {0};
 	for(uint8_t i=0;i<4;i++)
@@ -781,41 +781,20 @@ void receive_dshoot_data_dispose(uint8_t *channel, uint16_t *data)
 			edge_dispose.old_hight_low_status = edge_dispose.hight_low_status;
 		}
 
-		if (start_value_flag)
-            motor_speed.speed[i] = decodeTelemetryPacket(&edge_data.edge[i][0], edge_data.edge_cnt[i]);
-        // if (i >= 3)
-        // {
-        //     receive_sum++;
+        if (start_value_flag)
+        {
+            speed_temp = decodeTelemetryPacket(&edge_data.edge[i][0], edge_data.edge_cnt[i]);
+            if (speed_temp != 65535)
+            {
+                motor_speed.speed[i] = speed_temp;
+            }
+        }
 
-            // Debug("%d %d %d %d %d %d %d %d\r\n", decode_cnt, success_cnt, fail_sum,
-                //   fail_cnt1, fail_cnt2, fail_cnt3, fail_cnt4, fail_cnt5);
-            // printf("%d %d %d %d %d %d %d %d\r\n", decode_cnt, success_cnt, fail_sum, fail_cnt1, fail_cnt2,
-            //        fail_cnt3, fail_cnt4, fail_cnt5);
-            // printf("Time_us %d RPM %d %d %d %d\r\n", GetSysTime_us(),
-            //        motor_speed.speed[0], motor_speed.speed[1], motor_speed.speed[2], motor_speed.speed[3]);
-        // }
     }
 }
 
 
-void send_dshot600_ok(void)
-{
-    cnt++;
-    if (cnt<3000) {
-        start_value_flag = 0;
-        memcpy(send_buffer_dshoot, send_buffer_0, sizeof(send_buffer_dshoot));
-        start_cnt = run_cnt;
-    } else {
-        start_value_flag = 1;
-        memcpy(send_buffer_dshoot, send_buffer_speed, sizeof(send_buffer_dshoot));
-    }
-    dma_status = 0;
-    gpio_configuration_output();
-    __set_PRIMASK(1);//关总中断
-    dma_configuration_send_shoot();
-    timer_configuration_send_dshoot();
-    __set_PRIMASK(0);//开总中断
-}
+
 
 extern uint16_t dshoot_dma_buffer[140];//32
 uint16_t data_handle[140] = {0};
@@ -826,18 +805,18 @@ extern uint8_t start_value_flag;
 void DMA_Channel3_4_IRQHandler(void)
 {
 	if(SET == dma_flag_get(DMA_CH3, DMA_FLAG_FTF)) 
-	{
+	{        
 		timer_disable(TIMER2);
 		dma_channel_disable(DMA_CH3);
 		dma_flag_clear(DMA_CH3, DMA_FLAG_FTF);
         if(dma_status == 0){
             //接收设置
-            __set_PRIMASK(1);//关中断
+            __set_PRIMASK(1);//关中断                
             gpio_configuration_input();
-			dma_configuration_receive_dshoot();
+            dma_configuration_receive_dshoot();
+            gpio_bit_reset(GPIOA, GPIO_PIN_6);      
             timer_configuration_receive_dshoot();
             __set_PRIMASK(0);//开中断
-            gpio_bit_reset(GPIOA, GPIO_PIN_0);
             gpio_bit_set(GPIOA, GPIO_PIN_1);                    
 			dma_status = 1;
         } else if (dma_status == 1) {
@@ -932,31 +911,48 @@ void test_dshot600_1ms(void)
     {
         count = 0 ;
         // printf("Time_us %d RPM %d %d %d %d\r\n", GetSysTime_us(),motor_speed.speed[0], motor_speed.speed[1], motor_speed.speed[2], motor_speed.speed[3]);    
-        gpio_bit_set(GPIOA, GPIO_PIN_6);            
+        // gpio_bit_set(GPIOA, GPIO_PIN_6);            
         SEGGER_RTT_SetTerminal(0);
         SEGGER_RTT_printf(0,"RPM %d %d %d %d\r\n",motor_speed.speed[0], motor_speed.speed[1], motor_speed.speed[2], motor_speed.speed[3]);
+        SEGGER_RTT_printf(0,"speed %d\r\n",speed_rec_);        
         // SEGGER_RTT_printf(0,"%d %d\r\n",rtt_cnt1,rtt_cnt2);
         // SEGGER_RTT_printf(0,"12345678\r\n");//58.4us，5.8us/1byte
-        gpio_bit_reset(GPIOA, GPIO_PIN_6);  
+        // gpio_bit_reset(GPIOA, GPIO_PIN_6);  
     }
     else
     {
         count++;
     }
 
-        		/* 做一个简单的回环功能 */
-    if (SEGGER_RTT_HasKey()) 
+    /* 做一个简单的回环功能 */
+    if (SEGGER_RTT_HasKey())
     {
         get_value_speed = SEGGER_RTT_GetKey();
         SEGGER_RTT_SetTerminal(0);
         SEGGER_RTT_printf(0, "SEGGER_RTT_GetKey = %d\r\n", get_value_speed);
-        // if(GetKey)
-        // raw_data
-    }
-    
 
-        
-    
+        switch (get_value_speed)
+        {
+        case 49:
+            speed_rec_ = 1000; // stop;
+            break;
+        case 50:
+            speed_rec_ = 1050;
+            break;
+        case 51:
+            speed_rec_ = 1060;
+            break;
+        case 52:
+            speed_rec_ = 1070;
+            break;
+        case 53:
+            speed_rec_ = 1080;
+            break;
+        default:
+            break;
+        }
+    }
+
     //send_dshot600_ok();
 }
 
