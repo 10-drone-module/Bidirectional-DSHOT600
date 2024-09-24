@@ -39,7 +39,7 @@ OF SUCH DAMAGE.
 #include "main.h"
 #include "gd32e230c_eval.h"
 #include "pwm_control.h"
-
+#include "SEGGER_RTT.h"
 
 
 #define TIMER2_CH0_ADDR     (0x40000400+0x34)
@@ -108,12 +108,13 @@ void gpioInitTestPin(void)
 {
     rcu_periph_clock_enable(RCU_GPIOA);
 
-    gpio_mode_set(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_5);
-    gpio_output_options_set(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_5);
+    gpio_mode_set(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_5|GPIO_PIN_6);
+    gpio_output_options_set(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_5|GPIO_PIN_6);
 
     gpio_bit_set(GPIOA, GPIO_PIN_0);
     gpio_bit_set(GPIOA, GPIO_PIN_1);
     gpio_bit_set(GPIOA, GPIO_PIN_5);
+    gpio_bit_set(GPIOA, GPIO_PIN_6);
 }
 
 void gpio_configuration_input(void)
@@ -353,6 +354,12 @@ int main(void)
     gd_eval_com_init(EVAL_COM);
     /* configure the TIMER interrupt */
     nvic_configuration(); 
+
+    	/* 配置通道0，上行配置*/
+	SEGGER_RTT_ConfigUpBuffer(0, "RTTUP", NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_SKIP);
+	
+	/* 配置通道0，下行配置*/	
+	SEGGER_RTT_ConfigDownBuffer(0, "RTTDOWN", NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_SKIP);
 
     /** configure the timer2 ch0 dma*/
     //dma_configuration();

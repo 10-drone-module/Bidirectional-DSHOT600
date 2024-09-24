@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>GD32E230</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Firmware\CMSIS;..\..\Utilities;..\;..\..\Utilities\LCD_Commom;..\..\Firmware\GD32E23x_standard_peripheral\Include;..\..\Firmware\CMSIS\GD\GD32E23x\Include</IncludePath>
+              <IncludePath>..\..\Firmware\CMSIS;..\..\Utilities;..\;..\..\Utilities\LCD_Commom;..\..\Firmware\GD32E23x_standard_peripheral\Include;..\..\Firmware\CMSIS\GD\GD32E23x\Include;..\..\SEGGER\RTT</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -543,6 +543,21 @@
               <FileName>readme.txt</FileName>
               <FileType>5</FileType>
               <FilePath>..\readme.txt</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>SEGGER</GroupName>
+          <Files>
+            <File>
+              <FileName>SEGGER_RTT.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\SEGGER\RTT\SEGGER_RTT.c</FilePath>
+            </File>
+            <File>
+              <FileName>SEGGER_RTT_printf.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\SEGGER\RTT\SEGGER_RTT_printf.c</FilePath>
             </File>
           </Files>
         </Group>

@@ -4,6 +4,7 @@
 #include "systick.h"
 #include "main.h"
 #include <string.h>
+#include "SEGGER_RTT.h"
 
 #define TIMEOUT_CONTROL_PWM_COUNT (8 - 4)
 #define ESC_CMD_BUFFER_LEN 18 
@@ -913,21 +914,46 @@ void pwm_control_protocol(uint8_t* datas)
 void test_dshot600_1ms(void)
 {
     static uint16_t count= 0 ;
+    uint8_t get_value_speed = 0;
+
+    /*demo for scope rtt*/
+    // static uint8_t rtt_cnt1 = 0;
+    // static uint8_t rtt_cnt2 = 0;
+    // rtt_cnt1++;
+    // rtt_cnt2 = rtt_cnt2 +10;
+
     delay_1ms(1);
     //if (handl_data_flag)
     //receive_dshoot_data_dispose(dshoot_pin,data_handle);
     //handl_data_flag = 0;
     run_cycle_1ms();
 
-    if(count > 2000)
+    if(count > 1000)
     {
         count = 0 ;
-        // printf("Time_us %d RPM %d %d %d %d\r\n", GetSysTime_us(),motor_speed.speed[0], motor_speed.speed[1], motor_speed.speed[2], motor_speed.speed[3]);
+        // printf("Time_us %d RPM %d %d %d %d\r\n", GetSysTime_us(),motor_speed.speed[0], motor_speed.speed[1], motor_speed.speed[2], motor_speed.speed[3]);    
+        gpio_bit_set(GPIOA, GPIO_PIN_6);            
+        SEGGER_RTT_SetTerminal(0);
+        SEGGER_RTT_printf(0,"RPM %d %d %d %d\r\n",motor_speed.speed[0], motor_speed.speed[1], motor_speed.speed[2], motor_speed.speed[3]);
+        // SEGGER_RTT_printf(0,"%d %d\r\n",rtt_cnt1,rtt_cnt2);
+        // SEGGER_RTT_printf(0,"12345678\r\n");//58.4us，5.8us/1byte
+        gpio_bit_reset(GPIOA, GPIO_PIN_6);  
     }
     else
     {
         count++;
     }
+
+        		/* 做一个简单的回环功能 */
+    if (SEGGER_RTT_HasKey()) 
+    {
+        get_value_speed = SEGGER_RTT_GetKey();
+        SEGGER_RTT_SetTerminal(0);
+        SEGGER_RTT_printf(0, "SEGGER_RTT_GetKey = %d\r\n", get_value_speed);
+        // if(GetKey)
+        // raw_data
+    }
+    
 
         
     
