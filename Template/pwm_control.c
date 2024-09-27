@@ -22,7 +22,6 @@ uint16_t speed_rec_ = 0;
 static motor_speed_str motor_speed;
 
 uint32_t success_cnt = 0;
-uint32_t fail_cnt = 0;
 uint32_t fail_cnt1, fail_cnt2, fail_cnt3;
 float percent;
 uint32_t run_cnt = 0;
@@ -62,123 +61,153 @@ void dshotEncode(uint8_t *channel, uint16_t (*dshot_data)[18], uint32_t (*data)[
     }
 }
 
-uint32_t dshotDecode(uint32_t buffer[], uint32_t count)
-{
-    volatile uint32_t value = 0;
-    uint32_t oldValue = buffer[0];
-    int bits = 0;
-    int len;
+uint32_t dshotDecode(uint32_t buffer[], uint32_t count)  
+{  
+    volatile uint32_t value = 0; // 存储解码后的值  
+    uint32_t oldValue = buffer[0]; // 记录前一个值，初始为buffer的第一个元素  
+    int bits = 0; // 记录已处理的比特位数  
+    int len; // 长度临时变量，用于计算当前段的长度  
 
-    run_cnt++;
+    run_cnt++; // 运行计数增加  
 
-    for (uint32_t i = 1; i <= count; i++)
-    {
-        if (i < count)
-        {
-            int diff = buffer[i] - oldValue;
-            if (bits >= 21)
-            {
-                fail_cnt1++;
-                break;
-            }
-            len = (diff + 3) / 6;
-        }
-        else
-        {
-            len = 21 - bits;
-        }
+    // 遍历buffer，从第一个元素到最后一个元素  
+    for (uint32_t i = 1; i <= count; i++)  
+    {  
+        if (i < count)  
+        {  
+            int diff = buffer[i] - oldValue; // 计算当前值与上一个值的差  
+            if (bits >= 21) // 如果比特数已达到21位  
+            {  
+                fail_cnt1++; // 增加故障计数  
+                break; // 退出循环  
+            }  
+            len = (diff + 3) / 6; // 根据差值计算当前段的长度（单位为6us）  
+        }  
+        else  
+        {  
+            len = 21 - bits; // 最后的比特段长度计算  
+        }  
 
-        value <<= len;
-        value |= 1 << (len - 1);
-        oldValue = buffer[i];
-        bits += len;
-    }
-    if (bits != 21)
-    {
-        fail_cnt2++;
-        return 0xffff;
-    }
+        value <<= len; // 将已解码值左移len位以腾出位置  
+        value |= 1 << (len - 1); // 在当前长度的位置上设置比特  
+        oldValue = buffer[i]; // 更新上一个值为当前值  
+        bits += len; // 更新已处理的比特数量  
+    }  
 
-    static const uint32_t decode[32] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 10, 11, 0, 13, 14, 15,
-                                        0, 0, 2, 3, 0, 5, 6, 7, 0, 0, 8,  1,  0, 4,  12, 0};
+    // 如果处理的比特数量不等于21，计数增加  
+    if (bits != 21)  
+    {  
+        fail_cnt2++; // 增加故障计数  
+        return 0xffff; // 返回错误标志  
+    }  
 
-    volatile uint32_t decodedValue = decode[value & 0x1f];
-    decodedValue |= decode[(value >> 5) & 0x1f] << 4;
-    decodedValue |= decode[(value >> 10) & 0x1f] << 8;
-    decodedValue |= decode[(value >> 15) & 0x1f] << 12;
+    // 解码映射表  
+    static const uint32_t decode[32] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 10, 11, 0, 13, 14, 15,  
+                                        0, 0, 2, 3, 0, 5, 6, 7, 0, 0, 8,  1,  0, 4,  12, 0};  
 
-    uint32_t csum = decodedValue;
-    csum = csum ^ (csum >> 8); // xor bytes
-    csum = csum ^ (csum >> 4); // xor nibbles
+    // 根据前21位解析出对应的值  
+    volatile uint32_t decodedValue = decode[value & 0x1f]; // 取value的低5位  
+    decodedValue |= decode[(value >> 5) & 0x1f] << 4; // 取下一个5位并左移4位  
+    decodedValue |= decode[(value >> 10) & 0x1f] << 8; // 再取下一个5位并左移8位  
+    decodedValue |= decode[(value >> 15) & 0x1f] << 12; // 取最后5位并左移12位  
 
-    if ((csum & 0xf) != 0xf)
-    {
-        // if (start_flag) {
-        fail_cnt3++; //}
-        return 0xffff;
-    }
-    decodedValue >>= 4;
+    uint32_t csum = decodedValue; // 计算校验和  
+    csum = csum ^ (csum >> 8); // 对字节进行异或运算  
+    csum = csum ^ (csum >> 4); // 对半字节进行异或运算  
 
-    if (decodedValue == 0x0fff)
-    {
-        return 0;
-    }
-    decodedValue = (decodedValue & 0x000001ff) << ((decodedValue & 0xfffffe00) >> 9);
-    if (!decodedValue)
-    {
-        return 0xffff;
-    }
-    uint32_t ret = (1000000 * 60 / 100 + decodedValue / 2) / decodedValue;
-    volatile float erpm = ret * 100;
-    volatile float rpm = ret * 100 * 2 / 7;
-    success_cnt++;
-    // percent = ((fail_cnt1+fail_cnt2+fail_cnt3)*100)/(success_cnt+fail_cnt1+fail_cnt2+fail_cnt3);
-    percent = ((fail_cnt2 + fail_cnt3) * 100) / (run_cnt);
-    return ret;
+    // 校验和检查  
+    if ((csum & 0xf) != 0xf) // 检查校验和的最后4位是否为1111  
+    {  
+        // if (start_flag) { // 原注释，可能用于调试标志  
+        fail_cnt3++; // 增加故障计数  
+        // }  
+        return 0xffff; // 返回错误标志  
+    }  
+    
+    decodedValue >>= 4; // 右移4位，获取有效数据位  
+
+    // 如果解码值仍为0x0fff，返回0  
+    if (decodedValue == 0x0fff)  
+    {  
+        return 0; // 特殊情况处理，返回0  
+    }  
+
+    // 将解码值进行位移和处理，得到最终的值  
+    decodedValue = (decodedValue & 0x000001ff) << ((decodedValue & 0xfffffe00) >> 9);   
+    if (!decodedValue) // 如果解码值为0，则返回0xffff  
+    {  
+        return 0xffff; // 返回错误标志  
+    }  
+
+    // 计算最终值  
+    uint32_t ret = (1000000 * 60 / 100 + decodedValue / 2) / decodedValue;   
+    // volatile float erpm = ret * 100; // 计算电机转速  
+    volatile float rpm = ret * 100 * 2 / 7; // 计算另一种转速表达方式  
+    success_cnt++; // 成功计数增加  
+
+    // 计算故障率百分比  
+    // percent = ((fail_cnt1+fail_cnt2+fail_cnt3)*100)/(success_cnt+fail_cnt1+fail_cnt2+fail_cnt3);  
+    percent = ((fail_cnt2 + fail_cnt3) * 100) / (run_cnt); // 更新故障率  
+
+    return ret; // 返回解码后的值  
 }
 
-void dshotDecodePre(uint8_t *channel, uint16_t *data)
-{
-    uint32_t speed_temp = 0;
-    edge_data_str edge_data = {0};
-    edge_dispose_str edge_dispose = {0};
-    for (uint8_t i = 0; i < 4; i++)
-    {
-        edge_dispose.old_hight_low_status = 0;
-        edge_dispose.hight_low_status = 0;
-        edge_dispose.start_flag = 0;
-        edge_dispose.signal_cnt = 0;
-        edge_dispose.vessel_number = 0;
+void dshotDecodePre(uint8_t *channel, uint16_t *data)  
+{  
+    uint32_t speed_temp = 0; // 临时变量，用于存储计算的速度  
+    edge_data_str edge_data = {0}; // 初始化边缘数据结构  
+    edge_dispose_str edge_dispose = {0}; // 初始化边缘处理数据结构  
 
-        for (int j = 0; j < 140; j++)
-        {
-            if (!(data[j] >> channel[i] & 1))
-            {
-                edge_dispose.hight_low_status = 1; // 低电平
-                edge_dispose.start_flag = 1;
-            }
-            else
-            {
-                edge_dispose.hight_low_status = 0; // 高电平
-            }
-            if (edge_dispose.start_flag)
-            {
-                edge_dispose.signal_cnt++; // 信号次数
-            }
-            if (edge_dispose.old_hight_low_status != edge_dispose.hight_low_status)
-            {
-                edge_data.edge[i][edge_dispose.vessel_number++] = (edge_dispose.signal_cnt - 1) * 2; // 信号计算从0开始
-                edge_data.edge_cnt[i]++;
-            }
-            edge_dispose.old_hight_low_status = edge_dispose.hight_low_status;
-        }
+    // 遍历4个通道  
+    for (uint8_t i = 0; i < 1; i++)  
+    {  
+        edge_dispose.old_hight_low_status = 0; // 记录上一个电平状态  
+        edge_dispose.hight_low_status = 0; // 当前电平状态  
+        edge_dispose.start_flag = 0; // 开始信号标志  
+        edge_dispose.signal_cnt = 0; // 信号计数  
+        edge_dispose.vessel_number = 0; // 边缘数据索引  
 
-        speed_temp = dshotDecode(&edge_data.edge[i][0], edge_data.edge_cnt[i]);
-        if (speed_temp != 65535)
-        {
-            motor_speed.speed[i] = speed_temp;
-        }
-    }
+        // 遍历数据中的位，最多140位  
+        for (int j = 0; j < 140; j++)  
+        {  
+            // 检查当前位是否为低电平  
+            if (!(data[j] >> channel[i] & 1))  
+            {  
+                edge_dispose.hight_low_status = 1; // 设置为高电平  
+                edge_dispose.start_flag = 1; // 设置开始信号标志  
+            }  
+            else  
+            {  
+                edge_dispose.hight_low_status = 0; // 设置为低电平  
+            }  
+
+            // 如果当前位为低电平，增加信号计数  
+            if (edge_dispose.start_flag)  
+            {  
+                edge_dispose.signal_cnt++; // 记录信号的发生次数  
+            }  
+
+            // 如果电平状态发生变化  
+            if (edge_dispose.old_hight_low_status != edge_dispose.hight_low_status)  
+            {  
+                // 记录边缘信号数据，并更新信号计数  
+                edge_data.edge[i][edge_dispose.vessel_number++] = (edge_dispose.signal_cnt - 1) * 2; // 计算信号位置  
+                edge_data.edge_cnt[i]++; // 增加当前通道的信号计数  
+            }  
+
+            // 更新之前的电平状态  
+            edge_dispose.old_hight_low_status = edge_dispose.hight_low_status;  
+        }  
+
+        // 调用解码函数，得到电机速度  
+        speed_temp = dshotDecode(&edge_data.edge[i][0], edge_data.edge_cnt[i]);  
+        
+        // 如果速度有效，则更新电机速度  
+        if (speed_temp != 65535)  
+        {  
+            motor_speed.speed[i] = speed_temp; // 将计算的速度保存到电机速度数组中  
+        }  
+    }  
 }
 
 
@@ -232,6 +261,16 @@ static void printfRpm(void)
         SEGGER_RTT_SetTerminal(0);
         SEGGER_RTT_printf(0, "RPM %d %d %d %d,set_speed %d\r\n", motor_speed.speed[0], motor_speed.speed[1],
                           motor_speed.speed[2], motor_speed.speed[3], speed_rec_);
+
+        SEGGER_RTT_printf(0, "run_cnt:%d,success_cnt:%d ,fail_cnt1:%d,fail_cnt2:%d,fail_cnt3:%d \r\n", run_cnt,
+                          success_cnt, fail_cnt1, fail_cnt2, fail_cnt3);
+
+        run_cnt = 0;
+        success_cnt = 0;
+        fail_cnt1 = 0;
+        fail_cnt2 = 0;
+        fail_cnt3 = 0;
+        percent = 0;
     }
     else
     {
