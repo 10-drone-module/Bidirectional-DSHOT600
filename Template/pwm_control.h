@@ -21,14 +21,20 @@ typedef struct edge_dispose_
 	uint8_t vessel_number;
 } edge_dispose_str;
 
-extern uint8_t dshoot_pin[MOTOR_NUM];
-void pwm_control_timeout(void);
-void pwm_control_protocol(uint8_t* datas);
-uint32_t decodeTelemetryPacket(uint32_t buffer[], uint32_t count);
-void run_cycle_1ms(void);
-void data_parse(void);
-void send_dshot600_ok(void);
-void receive_dshoot_data_dispose(uint8_t *channel, uint16_t *data);
+typedef struct motor_speed_str_s
+{
+    uint16_t speed[4];
+} motor_speed_str;
+
+enum PWM_INDEX_NUMBER
+{
+    PWM_1 = 0,
+    PWM_2 = 1,
+    PWM_3 = 2,
+    PWM_4 = 3,
+    PWM_MAX = 4,
+};
+
 void test_dshot600_1ms(void);
 
 #endif

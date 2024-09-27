@@ -36,8 +36,26 @@ OF SUCH DAMAGE.
 #ifndef MAIN_H
 #define MAIN_H
 
-/* led spark function */
-void led_spark(void);
+#include "SEGGER_RTT.h"
+#include "gd32e230c_eval.h"
+#include "gd32e23x.h"
+#include "pwm_control.h"
+#include "systick.h"
+#include <stdio.h>
+
+typedef struct
+{
+    uint32_t ctl;
+    uint32_t cnt;
+    uint32_t p_addr;
+    uint32_t m_addr;
+} DmaCache_s;
+
+typedef struct
+{
+    uint32_t ctl;
+    uint32_t pud;
+} InputRegGpio_s;
 
 void gpio_configuration_output(void);
 void gpio_configuration_input(void);
