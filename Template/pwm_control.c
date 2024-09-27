@@ -27,7 +27,7 @@ uint32_t fail_cnt1, fail_cnt2, fail_cnt3;
 float percent;
 uint32_t run_cnt = 0;
 
-void dshot_control_4(uint8_t *channel, uint16_t (*dshot_data)[18], uint32_t (*data)[54])
+void dshotEncode(uint8_t *channel, uint16_t (*dshot_data)[18], uint32_t (*data)[54])
 {
     for (uint8_t i = 0; i < 4; i++)
     {
@@ -62,7 +62,7 @@ void dshot_control_4(uint8_t *channel, uint16_t (*dshot_data)[18], uint32_t (*da
     }
 }
 
-uint32_t decodeTelemetryPacket(uint32_t buffer[], uint32_t count)
+uint32_t dshotDecode(uint32_t buffer[], uint32_t count)
 {
     volatile uint32_t value = 0;
     uint32_t oldValue = buffer[0];
@@ -137,40 +137,7 @@ uint32_t decodeTelemetryPacket(uint32_t buffer[], uint32_t count)
     return ret;
 }
 
-uint16_t add_checksum_and_telemetry_double(uint16_t packet)
-{
-    uint16_t packet_telemetry = (packet << 1) | 0;
-    uint8_t i;
-    int crc = 0;
-    int csum_data = packet_telemetry;
-    crc = (~(csum_data ^ (csum_data >> 4) ^ (csum_data >> 8))) & 0x0F;
-    packet_telemetry = (packet_telemetry << 4) | crc;
-    return packet_telemetry; // append checksum
-}
-
-void pwmWriteDigital(uint16_t *esc_cmd, uint16_t value)
-{
-    value = ((value > 2047) ? 2047 : value);
-    volatile uint16_t value1 = add_checksum_and_telemetry_double(value);
-    esc_cmd[0] = (value1 & 0x8000) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[1] = (value1 & 0x4000) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[2] = (value1 & 0x2000) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[3] = (value1 & 0x1000) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[4] = (value1 & 0x0800) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[5] = (value1 & 0x0400) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[6] = (value1 & 0x0200) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[7] = (value1 & 0x0100) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[8] = (value1 & 0x0080) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[9] = (value1 & 0x0040) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[10] = (value1 & 0x0020) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[11] = (value1 & 0x0010) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[12] = (value1 & 0x8) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[13] = (value1 & 0x4) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[14] = (value1 & 0x2) ? ESC_BIT_1 : ESC_BIT_0;
-    esc_cmd[15] = (value1 & 0x1) ? ESC_BIT_1 : ESC_BIT_0;
-}
-
-void receive_dshoot_data_dispose(uint8_t *channel, uint16_t *data)
+void dshotDecodePre(uint8_t *channel, uint16_t *data)
 {
     uint32_t speed_temp = 0;
     edge_data_str edge_data = {0};
@@ -206,12 +173,46 @@ void receive_dshoot_data_dispose(uint8_t *channel, uint16_t *data)
             edge_dispose.old_hight_low_status = edge_dispose.hight_low_status;
         }
 
-        speed_temp = decodeTelemetryPacket(&edge_data.edge[i][0], edge_data.edge_cnt[i]);
+        speed_temp = dshotDecode(&edge_data.edge[i][0], edge_data.edge_cnt[i]);
         if (speed_temp != 65535)
         {
             motor_speed.speed[i] = speed_temp;
         }
     }
+}
+
+
+uint16_t add_checksum_and_telemetry_double(uint16_t packet)
+{
+    uint16_t packet_telemetry = (packet << 1) | 0;
+    uint8_t i;
+    int crc = 0;
+    int csum_data = packet_telemetry;
+    crc = (~(csum_data ^ (csum_data >> 4) ^ (csum_data >> 8))) & 0x0F;
+    packet_telemetry = (packet_telemetry << 4) | crc;
+    return packet_telemetry; // append checksum
+}
+
+static void pwmWriteDigital(uint16_t *esc_cmd, uint16_t value)
+{
+    value = ((value > 2047) ? 2047 : value);
+    volatile uint16_t value1 = add_checksum_and_telemetry_double(value);
+    esc_cmd[0] = (value1 & 0x8000) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[1] = (value1 & 0x4000) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[2] = (value1 & 0x2000) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[3] = (value1 & 0x1000) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[4] = (value1 & 0x0800) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[5] = (value1 & 0x0400) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[6] = (value1 & 0x0200) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[7] = (value1 & 0x0100) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[8] = (value1 & 0x0080) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[9] = (value1 & 0x0040) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[10] = (value1 & 0x0020) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[11] = (value1 & 0x0010) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[12] = (value1 & 0x8) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[13] = (value1 & 0x4) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[14] = (value1 & 0x2) ? ESC_BIT_1 : ESC_BIT_0;
+    esc_cmd[15] = (value1 & 0x1) ? ESC_BIT_1 : ESC_BIT_0;
 }
 
 static void pwm_control_protocol(uint16_t *pwm)
@@ -272,7 +273,7 @@ static void changeSpeedBySegger(void)
 static void setMotorSpeed(uint16_t *speed)
 {
     pwm_control_protocol(speed);
-    dshot_control_4(dshoot_pin, dshot_cmd_ch, bit_dshoot_cmd_data);
+    dshotEncode(dshoot_pin, dshot_cmd_ch, bit_dshoot_cmd_data);
     memcpy(send_buffer_dshoot, &bit_dshoot_cmd_data[4][0], sizeof(send_buffer_dshoot));
 }
 
@@ -350,7 +351,7 @@ void DMA_Channel3_4_IRQHandler(void)
         {
             gpio_bit_reset(GPIOA, GPIO_PIN_1);
             gpio_bit_set(GPIOA, GPIO_PIN_5);            
-            receive_dshoot_data_dispose(dshoot_pin, dshoot_dma_buffer);
+            dshotDecodePre(dshoot_pin, dshoot_dma_buffer);
             gpio_bit_reset(GPIOA, GPIO_PIN_5);
         }
     }
